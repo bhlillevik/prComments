@@ -71,12 +71,9 @@ jobs:
       - name: "What-if sub deploy"
         run: |
           whatifResults=$(az deployment sub what-if --location "$LOCATION" --template-file "main.bicep")
-          echo "$whatifResults" > results.md
-          cat results.md
-          sed -i '1s/^/```diff\n/' results.md
-          sed -i -e '$a```' results.md
-          sed -i 's/~/!/g' results.md
-          sed -i 's/^[ \t]*//' results.md
+          echo '```diff' > results.md
+          echo "$whatifResults" | sed 's/~/!/g' | sed 's/^[ \t]*//' >> results.md
+          echo '```' >> results.md
           gh pr comment ${{ github.event.pull_request.number }} --body-file ./results.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
