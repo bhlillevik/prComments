@@ -1,5 +1,6 @@
 targetScope = 'subscription'
 
+@description('Location for resources to be deployed')
 param location string = deployment().location
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' = {
