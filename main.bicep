@@ -6,7 +6,10 @@ param location string = deployment().location
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' = {
   name: 'connectivity-rg'
   location: location
-  tags: {}
+  tags: {
+    environment: 'test'
+    workload: 'prComment'
+  }
 }
 
 module vnet 'resources/vnet.bicep' = {
