@@ -1,0 +1,79 @@
+name: CI - Pipeline
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "*"
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  LOCATION: "westeurope"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: azure/login@v1
+        name: Sign in to Azure
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      - name: Run Bicep linter
+        run: az bicep build --file main.bicep
+
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: azure/login@v1
+        name: Sign in to Azure
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: azure/arm-deploy@v1
+        name: Run preflight validation
+        with:
+          deploymentName: ${{ github.run_number }}
+          scope: subscription
+          region: ${{ env.LOCATION }}
+          subscriptionId: ${{ env.AZURE_SUBSCRIPTION_ID }}
+          template: ./main.bicep
+          deploymentMode: Validate
+
+  preview:
+    runs-on: ubuntu-latest
+    needs: [lint, validate]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: azure/login@v1
+        name: Sign in to Azure
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      - name: "Set AZ SUB ID"
+        run: |
+          az account set -s $AZURE_SUBSCRIPTION_ID
+          az account show
+      - name: "What-if sub deploy"
+        run: |
+          whatifResults=$(az deployment sub what-if --location "$LOCATION" --template-file "main.bicep")
+          echo '```diff' > results.md
+          echo "$whatifResults" | sed 's/~/!/g' | sed 's/^[ \t]*//' >> results.md
+          echo '```' >> results.md
+          gh pr comment ${{ github.event.pull_request.number }} --body-file ./results.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
